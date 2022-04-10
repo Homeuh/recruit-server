@@ -2,11 +2,14 @@ package com.example.recruit.controller;
 
 
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.example.recruit.common.lang.Result;
 import com.example.recruit.entity.*;
-import com.example.recruit.util.DateUtil;
+import com.example.recruit.util.UploadUtil;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -64,17 +67,22 @@ public class ApplicantController extends BaseController {
                         .eq("resume_id",resume.getResumeId()));
                 int skillCount = skillService.count(new QueryWrapper<Skill>()
                         .eq("resume_id",resume.getResumeId()));
-                if(!resume.getSelfEvaluation().equals("")){
+                if(StrUtil.isNotBlank(resume.getSelfEvaluation())){
                     resume_percent += 10;
-                } else if(jobIntentionCount != 0){
+                }
+                if(jobIntentionCount != 0){
                     resume_percent += 10;
-                } else if(jobExperienceCount != 0){
+                }
+                if(jobExperienceCount != 0){
                     resume_percent += 10;
-                } else if(projectExperienceCount != 0){
+                }
+                if(projectExperienceCount != 0){
                     resume_percent += 10;
-                } else if(educationCount != 0){
+                }
+                if(educationCount != 0){
                     resume_percent += 10;
-                } else if(skillCount != 0){
+                }
+                if(skillCount != 0){
                     resume_percent += 10;
                 }
             }
@@ -130,4 +138,46 @@ public class ApplicantController extends BaseController {
             return Result.fail(404,"该求职者简历不存在",e.toString());
         }
     }
+
+    // 求职者上传头像
+    @PostMapping("/upload/{login_id}")
+    public Object upload(@RequestParam("file") MultipartFile multipartFile, @PathVariable String login_id){
+        //调用工具类完成文件上传
+        try{
+            String imagePath = UploadUtil.upload(multipartFile);
+            if (imagePath != null){
+                applicantService.update(new UpdateWrapper<Applicant>()
+                        .eq("login_id",login_id)
+                        .set("applicant_avatar",imagePath));
+                //创建一个HashMap用来存放图片路径
+                Map<String, Object> map = new HashMap<>();
+                map.put("url",imagePath);
+                map.put("notice","上传成功");
+                return Result.succ(map);
+            }else{
+                return Result.fail("上传失败");
+            }
+        }catch (Exception e){
+            return Result.fail(e.toString());
+        }
+    }
+
+    // 求职者上传默认头像
+    @PostMapping("/uploadDefault")
+    public Object uploadDefault(String avatarName,  String login_id){
+        //调用工具类完成文件上传
+        try{
+            applicantService.update(new UpdateWrapper<Applicant>()
+                    .eq("login_id",login_id)
+                    .set("applicant_avatar",avatarName));
+            //创建一个HashMap用来存放图片路径
+            Map<String, Object> map = new HashMap<>();
+            map.put("url",avatarName);
+            map.put("notice","上传成功");
+            return Result.succ(map);
+        }catch (Exception e){
+            return Result.fail(e.toString());
+        }
+    }
+
 }

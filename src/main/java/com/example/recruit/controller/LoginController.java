@@ -1,11 +1,14 @@
 package com.example.recruit.controller;
 
 
+import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.example.recruit.common.lang.Result;
+import com.example.recruit.entity.Applicant;
 import com.example.recruit.entity.Login;
+import com.example.recruit.entity.Recruiter;
 import com.example.recruit.entity.Resume;
 import org.springframework.web.bind.annotation.*;
 
@@ -94,4 +97,20 @@ public class LoginController extends BaseController {
             return Result.fail(404,"数据库没有该用户记录",e.toString());
         }
     };
+
+    // 验证是否已填写注册信息：求职者 -> 基本信息， 招聘官 -> 基本信息
+    @GetMapping("/validate/{login_id}/{login_role}")
+    public Object validate(@PathVariable String login_id, @PathVariable String login_role){
+        boolean isCompleteRegister = false;
+        if(login_role.equals("0")){
+            isCompleteRegister = applicantService.count(new QueryWrapper<Applicant>()
+                    .eq("login_id", login_id)) == 1;
+        }
+        if(login_role.equals("1")){
+            isCompleteRegister = recruiterService.count(new QueryWrapper<Recruiter>()
+                    .eq("login_id", login_id)) == 1;
+        }
+        return Result.succ(MapUtil.builder().put("isCompleteRegister",isCompleteRegister).map());
+    }
+
 }
