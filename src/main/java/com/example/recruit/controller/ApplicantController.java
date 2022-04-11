@@ -180,4 +180,46 @@ public class ApplicantController extends BaseController {
         }
     }
 
+    // 获取求职者可修改账号信息
+    @GetMapping("/setting/{login_id}")
+    public Object setting(@PathVariable String login_id) {
+        try {
+            Login login = loginService.getById(login_id);
+            Applicant applicant = applicantService.getOne(new QueryWrapper<Applicant>().eq("login_id",login_id));
+            Map<String, Object> map = new HashMap<>();
+            map.put("login_phone", login.getLoginPhone());
+            map.put("password", login.getPassword());
+            map.put("applicant_wechat", applicant.getApplicantWechat());
+            map.put("applicant_email", applicant.getApplicantEmail());
+            return Result.succ(MapUtil.builder().put("loginForm",map).map());
+        } catch (Exception e) {
+            return Result.fail(404,"账号信息获取失败",e.toString());
+        }
+    }
+
+    //修改微信号码
+    @PostMapping("/updateWechat")
+    public Object updatePhone(@RequestBody Map<String, Object> map) {
+        try{
+            applicantService.update(new UpdateWrapper<Applicant>()
+                    .eq("login_id",map.get("login_id"))
+                    .set("applicant_wechat",map.get("newWechat")));
+            return Result.succ("微信号修改成功");
+        } catch(Exception e) {
+            return Result.fail(404,"修改失败",e.toString());
+        }
+    }
+
+    //修改绑定邮箱
+    @PostMapping("/updateEmail")
+    public Object updateEmail(@RequestBody Map<String, Object> map) {
+        try{
+            applicantService.update(new UpdateWrapper<Applicant>()
+                    .eq("login_id",map.get("login_id"))
+                    .set("applicant_email",map.get("newEmail")));
+            return Result.succ("邮箱修改成功");
+        } catch(Exception e) {
+            return Result.fail(404,"修改失败",e.toString());
+        }
+    }
 }

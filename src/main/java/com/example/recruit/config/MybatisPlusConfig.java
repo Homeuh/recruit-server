@@ -18,7 +18,7 @@ public class MybatisPlusConfig {
         //  分页插件
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor());
         //  防止全表更新/删除插件
-        interceptor.addInnerInterceptor(new BlockAttackInnerInterceptor());
+//        interceptor.addInnerInterceptor(new BlockAttackInnerInterceptor());
 
         return interceptor;
     }

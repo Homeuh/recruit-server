@@ -36,6 +36,11 @@ public class Job extends BaseEntity {
     private String recruiterId;
 
     /**
+     * 公司ID，外键，关联到company表company_id
+     */
+    private String companyId;
+
+    /**
      * 职位职责 / 职位名称
      */
     private String jobDuty;

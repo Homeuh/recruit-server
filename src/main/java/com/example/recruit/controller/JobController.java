@@ -121,6 +121,7 @@ public class JobController extends BaseController {
 
             Company company = companyService.getById(recruiter.getCompanyId());
             Map<String, Object> companyMap = new HashMap<>();
+            companyMap.put("company_id",company.getCompanyId());
             companyMap.put("company_name", company.getCompanyName());
             companyMap.put("company_logo", company.getCompanyLogo());
             companyMap.put("company_tag", company.getCompanyTag());

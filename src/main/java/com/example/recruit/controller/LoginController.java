@@ -113,4 +113,30 @@ public class LoginController extends BaseController {
         return Result.succ(MapUtil.builder().put("isCompleteRegister",isCompleteRegister).map());
     }
 
+    //修改登录手机
+    @PostMapping("/updatePhone")
+    public Object updatePhone(@RequestBody Map<String, Object> map) {
+        try{
+            loginService.update(new UpdateWrapper<Login>()
+                    .eq("login_id",map.get("login_id"))
+                    .set("login_phone",map.get("newPhone")));
+            return Result.succ("登录手机修改成功");
+        } catch(Exception e) {
+            return Result.fail(404,"修改失败",e.toString());
+        }
+    }
+
+    //修改登录密码
+    @PostMapping("/updatePass")
+    public Object updatePass(@RequestBody Map<String, Object> map) {
+        try{
+            loginService.update(new UpdateWrapper<Login>()
+                    .eq("login_id",map.get("login_id"))
+                    .set("password",map.get("newPass")));
+            return Result.succ("登录密码修改成功");
+        } catch(Exception e) {
+            return Result.fail(404,"修改失败",e.toString());
+        }
+    }
+
 }
