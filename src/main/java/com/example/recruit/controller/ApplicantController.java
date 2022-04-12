@@ -144,7 +144,7 @@ public class ApplicantController extends BaseController {
     public Object upload(@RequestParam("file") MultipartFile multipartFile, @PathVariable String login_id){
         //调用工具类完成文件上传
         try{
-            String imagePath = UploadUtil.upload(multipartFile);
+            String imagePath = UploadUtil.upload(multipartFile, "avatar");
             if (imagePath != null){
                 applicantService.update(new UpdateWrapper<Applicant>()
                         .eq("login_id",login_id)

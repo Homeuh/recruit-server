@@ -29,6 +29,41 @@ import java.util.Map;
 @RequestMapping("/apply")
 public class ApplyController extends BaseController {
 
+    // 求职者个人中心页返回6条最新投递记录
+    @GetMapping("/list/{login_id}")
+    public Object list(@PathVariable String login_id) {
+        try {
+            Applicant applicant = applicantService.getOne(new QueryWrapper<Applicant>().eq("login_id",login_id));
+            List<Apply> applyList = applyService.list(new QueryWrapper<Apply>()
+                    .eq("applicant_id",applicant.getApplicantId())
+                    .orderByDesc("create_date")
+                    .last("limit 6"));
+            List<Map> mapList = new ArrayList<>();
+            for (Apply apply: applyList) {
+                Job job = jobService.getById(apply.getJobId());
+                Company company = companyService.getById(apply.getCompanyId());
+                Map<String, Object> map = new HashMap<>();
+                map.put("job_duty", job.getJobDuty());
+                map.put("job_salary", job.getJobSalary());
+                map.put("office_city", job.getOfficeCity());
+                map.put("job_year", job.getJobYear());
+                map.put("education", job.getEducation());
+                map.put("company_logo", company.getCompanyLogo());
+                map.put("company_name", company.getCompanyName());
+                map.put("company_tag", company.getCompanyTag());
+                map.put("company_type", company.getCompanyType());
+                map.put("company_size", company.getCompanySize());
+                map.put("create_date", apply.getCreateDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                map.put("apply_status", apply.getApplyStatus());
+                mapList.add(map);
+            }
+            int apply_num = applyService.count(new QueryWrapper<Apply>().eq("applicant_id",applicant.getApplicantId()));
+            return Result.succ(MapUtil.builder().put("applyList",mapList).put("apply_num",apply_num).map());
+        } catch (Exception e) {
+            return Result.fail(404, "数据库无该求职者投递记录",e.toString());
+        }
+    }
+
     // 查询是否有该条投递记录
     @GetMapping("info/{login_id}/{job_id}")
     public Object info(@PathVariable String login_id, @PathVariable String job_id) {
@@ -45,8 +80,10 @@ public class ApplyController extends BaseController {
 
     // 分页查找不同投递状态的投递记录
     @GetMapping("/page")
-    public Object page(@RequestParam(name="apply_status") String apply_status) {
+    public Object page(@RequestParam(name="apply_status") String apply_status, @RequestParam(name="login_id") String login_id) {
+        Applicant applicant = applicantService.getOne(new QueryWrapper<Applicant>().eq("login_id",login_id));
         Page<Apply> applyPage = applyService.page(getPage(), new QueryWrapper<Apply>()
+                .eq("applicant_id",applicant.getApplicantId())
                 .eq(StrUtil.isNotBlank(apply_status)
                     ,"apply_status"
                     ,apply_status));
@@ -71,6 +108,7 @@ public class ApplyController extends BaseController {
             mapList.add(map);
         }
         int total = applyService.count(new QueryWrapper<Apply>()
+                .eq("applicant_id",applicant.getApplicantId())
                 .eq(StrUtil.isNotBlank(apply_status)
                     , "apply_status"
                     ,apply_status));

@@ -3,16 +3,16 @@ package com.example.recruit.controller;
 
 import cn.hutool.core.map.MapUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.recruit.common.lang.Result;
 import com.example.recruit.entity.*;
 import com.example.recruit.service.JobService;
 import com.example.recruit.util.DateUtil;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-
-import org.springframework.web.bind.annotation.RestController;
+import com.example.recruit.util.UploadUtil;
+import com.sun.org.apache.regexp.internal.RE;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,7 +40,7 @@ public class CompanyController extends BaseController {
         for (Company company: companyList){
             int evaluationCount = interviewEvaluationService.count(new QueryWrapper<InterviewEvaluation>()
                     .eq("company_id",company.getCompanyId()));
-            int recruiterCount = recruiterService.count(new QueryWrapper<Recruiter>().eq("company_id",company.getCompanyId()));
+            int jobCount = jobService.count(new QueryWrapper<Job>().eq("company_id",company.getCompanyId()));
             Map<String, Object> map = new HashMap<>();
             map.put("company_id",company.getCompanyId());
             map.put("icon",company.getCompanyLogo());
@@ -49,7 +49,7 @@ public class CompanyController extends BaseController {
             map.put("size",company.getCompanySize());
             map.put("description",company.getCompanyDescription());
             map.put("userComment",evaluationCount);
-            map.put("recruit",recruiterCount);
+            map.put("recruit",jobCount);
             map.put("activity",Math.ceil(Math.random()*10 + 85));
             mapList.add(map);
         }
@@ -64,7 +64,7 @@ public class CompanyController extends BaseController {
         for (Company company : companyPage.getRecords()) {
             int evaluationCount = interviewEvaluationService.count(new QueryWrapper<InterviewEvaluation>()
                     .eq("company_id",company.getCompanyId()));
-            int recruiterCount = recruiterService.count(new QueryWrapper<Recruiter>().eq("company_id",company.getCompanyId()));
+            int jobCount = jobService.count(new QueryWrapper<Job>().eq("company_id",company.getCompanyId()));
             Map<String, Object> map = new HashMap<>();
             map.put("company_id",company.getCompanyId());
             map.put("company_logo",company.getCompanyLogo());
@@ -73,7 +73,7 @@ public class CompanyController extends BaseController {
             map.put("company_size",company.getCompanySize());
             map.put("company_description",company.getCompanyDescription());
             map.put("userComment",evaluationCount);
-            map.put("recruit",recruiterCount);
+            map.put("recruit",jobCount);
             map.put("activity",Math.ceil(Math.random()*10 + 85));
             mapList.add(map);
         }
@@ -197,6 +197,72 @@ public class CompanyController extends BaseController {
             return Result.succ(MapUtil.builder().put("filterJob",filterJob).map());
         } catch(Exception e){
             return Result.fail(404,"数据库查找在招职位失败",e.toString());
+        }
+    }
+
+    // 查找公司表是否存在该公司,存在返回公司相应信息
+    @GetMapping("/getCompanyInfo")
+    public Object getCompanyInfo(@RequestParam(name="company_full_name") String company_full_name) {
+        try {
+            Company company = companyService.getOne(new QueryWrapper<Company>().eq("company_full_name",company_full_name));
+            Map<String, Object> map = new HashMap<>();
+            map.put("company_id", company.getCompanyId());
+            map.put("company_full_name", company.getCompanyFullName());
+            map.put("company_name", company.getCompanyName());
+            map.put("company_logo", company.getCompanyLogo());
+            map.put("company_tag", company.getCompanyTag());
+            map.put("company_type", company.getCompanyType());
+            return Result.succ(MapUtil.builder().put("company",map).map());
+        } catch (Exception e) {
+            return Result.fail(404,"该公司尚未注册",e.toString());
+        }
+    }
+
+    // 插入或修改公司
+    @PostMapping("/saveOrUpdate")
+    public Object saveOrUpdate(@RequestBody Company company){
+        try {
+            companyService.saveOrUpdate(company);
+            return Result.succ("插入或修改公司记录成功");
+        } catch (Exception e) {
+            return Result.fail(400,"插入或修改公司记录失败",e.toString());
+        }
+    }
+
+    // 公司上传logo
+    @PostMapping("/upload/{company_full_name}")
+    public Object upload(@RequestParam("file") MultipartFile multipartFile, @PathVariable String company_full_name){
+        //调用工具类完成文件上传
+        try{
+            String imagePath = UploadUtil.upload(multipartFile, "company");
+            if (imagePath != null){
+                companyService.update(new UpdateWrapper<Company>()
+                        .eq("company_full_name",company_full_name)
+                        .set("company_logo",imagePath));
+                //创建一个HashMap用来存放图片路径
+                Map<String, Object> map = new HashMap<>();
+                map.put("url",imagePath);
+                map.put("notice","上传成功");
+                return Result.succ(map);
+            }else{
+                return Result.fail("上传失败");
+            }
+        }catch (Exception e){
+            return Result.fail(e.toString());
+        }
+    }
+
+    // 检验公司及其会员码是否与前端传递数据匹配，返回一个boolean结果
+    @GetMapping("/getMemberCode")
+    public Object getMemberCode(@RequestParam(name="company_id") String company_id, @RequestParam(name="member_code") String member_code) {
+        try {
+            int companyCount = companyService.count(new QueryWrapper<Company>()
+                    .eq("company_id",company_id)
+                    .eq("member_code",member_code));
+            boolean companyExist = companyCount == 1;
+            return Result.succ(MapUtil.builder().put("companyExist",companyExist).map());
+        } catch (Exception e) {
+            return Result.fail(400,"未知错误",e.toString());
         }
     }
 }

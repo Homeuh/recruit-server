@@ -10,10 +10,10 @@ public class UploadUtil {
 
     //定义一个上传文件的路径：本地路径->桌面recruit-image/avatar 文件夹
 //    private static final String BASE_PATH = "G:\\recruit\\src\\image\\avatar";
-    private static final String BASE_PATH = "F:\\recruit\\recruit\\src\\image\\avatar";
+    private static final String BASE_PATH = "F:\\recruit\\recruit\\src\\image\\";
     //定义文件服务器的访问地址
 //    private static  final String SERVER_PATH="http://localhost:8080/upload/";
-    public static String upload(MultipartFile file){
+    public static String upload(MultipartFile file, String secondPath){
         //获得上传文件的名称
         String filename = file.getOriginalFilename();
         //创建UUID，用来保持文件名字的唯一性
@@ -21,7 +21,7 @@ public class UploadUtil {
         //进行文件名称的拼接
         String newFileName = uuid+"-"+filename;
         //创建文件实例对象
-        File uploadFile = new File(BASE_PATH,newFileName);
+        File uploadFile = new File(BASE_PATH + secondPath,newFileName);
         //判断当前文件是否存在
         if (!uploadFile.exists()){
             //如果不存在就创建一个文件夹
