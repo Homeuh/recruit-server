@@ -2,19 +2,20 @@ package com.example.recruit.controller;
 
 
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.recruit.common.lang.Result;
 import com.example.recruit.entity.Company;
 import com.example.recruit.entity.Job;
+import com.example.recruit.entity.Login;
 import com.example.recruit.entity.Recruiter;
 import com.example.recruit.util.DateUtil;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 
-import org.springframework.web.bind.annotation.RestController;
-
+import java.lang.reflect.Array;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -133,4 +134,97 @@ public class JobController extends BaseController {
             return Result.fail(404,"数据库查找该条记录失败",e.toString());
         }
     };
+
+    /**
+     * 招聘官职位管理分页（条件：职位状态、发布时间）：
+     *    ①根据不同职位状态分页：全部null / 已发布"0" / 草稿箱"1" / 已下线"2"；
+     *    ②根据发布时间分页（update_date，因为职位创建后可被修改状态）
+     */
+    @GetMapping("/jobManagePage")
+    public Object jobManagePage(@RequestParam(name="login_id") String login_id,
+                                @RequestParam(name="job_status") String job_status,
+                                @RequestParam(name="condition") String condition) {
+        List<Map> mapList = new ArrayList<>();
+        Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+        Page<Job> jobPage = jobService.page(getPage(), new QueryWrapper<Job>()
+                .eq("recruiter_id",recruiter.getRecruiterId())
+                .eq(StrUtil.isNotBlank(job_status),"job_status",job_status)
+                .orderByDesc("update_date"));
+        for (Job job : jobPage.getRecords()) {
+            if(DateUtil.DateTimeReverse(job.getUpdateDate(),condition)) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("job_id", job.getJobId());
+                map.put("job_duty", job.getJobDuty());
+                map.put("job_year", job.getJobYear());
+                map.put("education", job.getEducation());
+                map.put("job_type", job.getJobType());
+                map.put("job_salary", job.getJobSalary());
+                map.put("job_industry", job.getJobIndustry());
+                map.put("office_city", job.getOfficeCity());
+                map.put("office_district", job.getOfficeDistrict());
+                map.put("job_status", job.getJobStatus());
+                mapList.add(map);
+            }
+        }
+        List<Job> jobList = jobService.list(new QueryWrapper<Job>()
+                .eq("recruiter_id",recruiter.getRecruiterId())
+                .eq(StrUtil.isNotBlank(job_status),"job_status",job_status));
+        int total = 0;
+        for (Job job: jobList) {
+            if(DateUtil.DateTimeReverse(job.getUpdateDate(),condition)){
+                total += 1;
+            }
+        }
+        return Result.succ(MapUtil.builder().put("jobList",mapList).put("total",total).map());
+    }
+
+    //分组统计现有工作行业下该招聘官发布职位的数量，如：技术->1，市场->2，销售-><3
+    @GetMapping("/countByIndustry/{login_id}")
+    public Object countByIndustry(@PathVariable String login_id) {
+        List<Map> mapList = new ArrayList<>();
+        Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+        List<Job> jobList = jobService.list(new QueryWrapper<Job>()
+                .eq("recruiter_id",recruiter.getRecruiterId())
+                .groupBy("job_industry"));
+        for (Job job: jobList) {
+            Map<String, Object> map = new HashMap<>();
+            int count = jobService.count(new QueryWrapper<Job>()
+                    .eq("recruiter_id",recruiter.getRecruiterId())
+                    .eq("job_industry",job.getJobIndustry()));
+            map.put("job_industry",job.getJobIndustry());
+            map.put("job_num",count);
+            mapList.add(map);
+        }
+        return Result.succ(MapUtil.builder().put("industryList",mapList).map());
+    }
+
+    // 职位状态更新：上线 / 下线
+    @PostMapping("/updateStatus")
+    public Object updateStatus(@RequestBody Map<String, Object> map){
+        try {
+//            return Result.succ(MapUtil.builder().put("idArray",map.get("idArray")).put("job_status",map.get("job_status")).map());
+            for (String job_id: (List<String>) map.get("idArray")) {
+                jobService.update(new UpdateWrapper<Job>()
+                    .eq("job_id", job_id)
+                    .set("job_status", map.get("job_status"))
+                    .set("update_date", LocalDateTime.now()));
+            }
+            return Result.succ("职位状态更新成功");
+        } catch (Exception e) {
+            return Result.fail("职位状态更新失败");
+        }
+    }
+
+    @DeleteMapping("/delete")
+    public Object delete(@RequestBody Map<String, Object> map){
+        try {
+//            return Result.succ(map.get("idArray"));
+            for (String job_id: (List<String>) map.get("idArray")) {
+                jobService.remove(new QueryWrapper<Job>().eq("job_id", job_id));
+            }
+            return Result.succ("职位删除成功");
+        } catch (Exception e) {
+            return Result.fail("职位删除失败");
+        }
+    }
 }

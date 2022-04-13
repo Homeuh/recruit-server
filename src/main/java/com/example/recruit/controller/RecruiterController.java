@@ -2,21 +2,24 @@ package com.example.recruit.controller;
 
 
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.api.R;
 import com.example.recruit.common.lang.Result;
-import com.example.recruit.entity.Applicant;
-import com.example.recruit.entity.Company;
-import com.example.recruit.entity.Login;
-import com.example.recruit.entity.Recruiter;
+import com.example.recruit.entity.*;
 import com.example.recruit.service.RecruiterService;
+import com.example.recruit.util.DateUtil;
 import com.example.recruit.util.UploadUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -51,6 +54,78 @@ public class RecruiterController extends BaseController {
             return Result.fail(404,"数据库没有该招聘官记录",e.toString());
         }
     };
+
+    // 招聘官 工作台 状态栏
+    @GetMapping("/getStatus/{login_id}")
+    public Object getStatus(@PathVariable String login_id) {
+        try {
+            Login login = loginService.getById(login_id);
+            Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+            int apply_num = applyService.count(new QueryWrapper<Apply>().eq("recruiter_id",recruiter.getRecruiterId()));
+            int job_num = jobService.count(new QueryWrapper<Job>().eq("recruiter_id",recruiter.getRecruiterId()));
+            Map<String, Object> map = new HashMap<>();
+            // 候选人应该由人才库筛选获得，人才库暂时未实现，所以使用固定值代替
+            map.put("applicant_num",105);
+            map.put("apply_num",apply_num);
+            map.put("job_num",job_num);
+            map.put("feedback_rate",Math.ceil(Math.random()*10 + 85));
+            map.put("login_date", DateUtil.DateTimeTransform(login.getLoginDate()));
+            // 获取上一次登录时间后更新为当前时间
+            loginService.update(new UpdateWrapper<Login>()
+                    .eq("login_id",login.getLoginId())
+                    .set("login_date", LocalDateTime.now()));
+            return Result.succ(MapUtil.builder().put("status",map).map());
+        } catch (Exception e) {
+            return Result.fail(e.toString());
+        }
+    }
+
+    // 招聘官工作台返回4条最新投递记录
+    @GetMapping("/list/{login_id}")
+    public Object list(@PathVariable String login_id) {
+        try {
+            Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+            List<Apply> applyList = applyService.list(new QueryWrapper<Apply>()
+                    .eq("recruiter_id",recruiter.getRecruiterId())
+                    .orderByDesc("create_date")
+                    .last("limit 4"));
+            List<Map> mapList = new ArrayList<>();
+            for (Apply apply: applyList) {
+                Applicant applicant = applicantService.getOne(new QueryWrapper<Applicant>().eq("applicant_id",apply.getApplicantId()));
+                Resume resume = resumeService.getOne(new QueryWrapper<Resume>().eq("applicant_id",applicant.getApplicantId()));
+                Education education = new Education();
+                if(educationService.count(new QueryWrapper<Education>().eq("resume_id",resume.getResumeId())) != 0){
+                    education = educationService.getOne(new QueryWrapper<Education>()
+                            .eq("resume_id",resume.getResumeId())
+                            .eq("education",applicant.getApplicantEducation())
+                            .last("limit 1"));
+                }
+                Job job = jobService.getById(apply.getJobId());
+                Map<String, Object> map = new HashMap<>();
+                map.put("applicant_id",applicant.getApplicantId());
+                map.put("applicant_avatar", applicant.getApplicantAvatar());
+                map.put("applicant_name", applicant.getApplicantName());
+                map.put("applicant_sex", applicant.getApplicantSex());
+                map.put("applicant_identity", applicant.getApplicantIdentity());
+                map.put("applicant_age", applicant.getApplicantAge());
+                map.put("working_year", applicant.getWorkingYear());
+                map.put("applicant_education", applicant.getApplicantEducation());
+                map.put("applicant_city", applicant.getApplicantCity());
+                map.put("school_name", education.getSchoolName());
+                map.put("major", education.getMajor());
+                map.put("job_duty", job.getJobDuty());
+                map.put("job_salary", job.getJobSalary());
+                map.put("job_year", job.getJobYear());
+                map.put("education", job.getEducation());
+                map.put("create_date", apply.getCreateDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+                mapList.add(map);
+            }
+            int recent_apply_num = applyService.count(new QueryWrapper<Apply>().eq("recruiter_id",recruiter.getRecruiterId()));
+            return Result.succ(MapUtil.builder().put("applyList",mapList).put("recent_apply_num",recent_apply_num).map());
+        } catch (Exception e) {
+            return Result.fail(404, "暂无投递记录",e.toString());
+        }
+    }
 
     // 插入或修改招聘官
     @PostMapping("saveOrUpdate")

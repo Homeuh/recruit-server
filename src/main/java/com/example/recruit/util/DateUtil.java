@@ -7,6 +7,7 @@ import java.time.temporal.ChronoUnit;
 
 public class DateUtil {
 
+    // 计算与今天的天数差
     public static Object DateTimeTransform(LocalDateTime localDateTime) {
         LocalDate now = LocalDate.now();
         LocalDate before = localDateTime.toLocalDate();
@@ -34,5 +35,31 @@ public class DateUtil {
             str = "1年前";
         }
         return str;
+    }
+
+    // 根据条件筛选符合的时间并返回boolean值
+    public static Boolean DateTimeReverse(LocalDateTime localDateTime, String condition) {
+        LocalDate now = LocalDate.now();
+        LocalDate before = localDateTime.toLocalDate();
+        long days = before.until(now, ChronoUnit.DAYS);
+        if(condition.equals("不限")) {
+            return true;
+        } else if(condition.equals("今天")) {
+            return days == 0;
+        } else if(condition.equals("3天内")) {
+            return days >= 0 && days <= 3;
+        } else if(condition.equals("1周内")) {
+            return days >= 0 && days <= 7;
+        } else if(condition.equals("1个月内")) {
+            return days >= 0 && days <= 31;
+        } else if(condition.equals("3个月内")) {
+            return days >= 0 && days <= 93;
+        } else if(condition.equals("半年内")) {
+            return days >= 0 && days <= 186;
+        } else if(condition.equals("半年以上")) {
+            return days > 186;
+        } else {
+            return false;
+        }
     }
 }
