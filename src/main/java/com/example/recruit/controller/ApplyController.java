@@ -7,14 +7,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.recruit.common.lang.Result;
 import com.example.recruit.entity.*;
+import com.example.recruit.util.DateUtil;
 import org.omg.CORBA.MARSHAL;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 /**
@@ -151,4 +149,111 @@ public class ApplyController extends BaseController {
             return Result.fail(404,"数据库没有该条投递记录",e.toString());
         }
     }
+
+    //分组统计现有工作行业下该招聘官已发布的有收到投递简历的职位数量，如：技术->1，市场->2，销售-><3
+    @GetMapping("/countByIndustry/{login_id}")
+    public Object countByIndustry(@PathVariable String login_id) {
+        Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+        List<Apply> applyList = applyService.list(new QueryWrapper<Apply>().eq("recruiter_id",recruiter.getRecruiterId()));
+        List<String> jobIds = new ArrayList<>();
+        for (Apply apply: applyList) {
+            jobIds.add(apply.getJobId());
+        }
+        List<Job> jobList = jobService.list(new QueryWrapper<Job>()
+                .in("job_id", jobIds)
+                .groupBy("job_industry"));
+
+        List<Map> mapList = new ArrayList<>();
+        for (Job job: jobList) {
+            Map<String, Object> map = new HashMap<>();
+            int count = jobService.count(new QueryWrapper<Job>()
+                    .in("job_id", jobIds)
+                    .eq("job_industry",job.getJobIndustry()));
+            map.put("job_industry",job.getJobIndustry());
+            map.put("job_num",count);
+            mapList.add(map);
+        }
+        return Result.succ(MapUtil.builder().put("industryList",mapList).map());
+    }
+
+    /**
+     * 招聘官简历处理(投递管理)分页（条件：职位名称、投递时间）
+     *    ①根据不同职位名称分页；
+     *    ②根据发布时间分页（update_date，因为投递记录创建后可被修改投递状态）
+     */
+    @GetMapping("/applyManagePage")
+    public Object applyManagePage(@RequestParam(name="login_id") String login_id,
+                                  @RequestParam(name="job_duty") String job_duty,
+                                  @RequestParam(name="condition") String condition) {
+        List<Map> mapList = new ArrayList<>();
+        Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+        Page<Apply> applyPage = applyService.page(getPage(), new QueryWrapper<Apply>()
+                .eq("recruiter_id",recruiter.getRecruiterId())
+                .orderByDesc("update_date"));
+        for (Apply apply : applyPage.getRecords()) {
+            Job job = jobService.getById(apply.getJobId());
+            // 如果职位名条件不为空，筛选职位名，不通过则跳转下一条投递记录
+            if(StrUtil.isNotBlank(job_duty) && !job.getJobDuty().equals(job_duty)) {
+                continue;
+            }
+            if(DateUtil.DateTimeReverse(apply.getUpdateDate(),condition)) {
+                Applicant applicant = applicantService.getById(apply.getApplicantId());
+                Education education = new Education();
+                if(educationService.count(new QueryWrapper<Education>().eq("resume_id",apply.getResumeId())) != 0) {
+                    education = educationService.getOne(new QueryWrapper<Education>()
+                            .eq("resume_id",apply.getResumeId())
+                            .eq("education",applicant.getApplicantEducation())
+                            .last("limit 1"));
+                }
+                Map<String, Object> map = new HashMap<>();
+                map.put("apply_id", apply.getApplyId());
+                map.put("applicant_avatar", applicant.getApplicantAvatar());
+                map.put("applicant_name", applicant.getApplicantName());
+                map.put("applicant_sex", applicant.getApplicantSex());
+                map.put("applicant_age", applicant.getApplicantAge());
+                map.put("working_year", applicant.getWorkingYear());
+                map.put("applicant_education", applicant.getApplicantEducation());
+                map.put("applicant_identity", applicant.getApplicantIdentity());
+                map.put("major", education.getMajor());
+                map.put("school_name", education.getSchoolName());
+                map.put("job_duty", job.getJobDuty());
+                map.put("job_industry", job.getJobIndustry());
+                map.put("create_date", apply.getCreateDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+                mapList.add(map);
+            }
+        }
+
+
+        List<Apply> applyList = applyService.list(new QueryWrapper<Apply>()
+                .eq("recruiter_id",recruiter.getRecruiterId()));
+        int total = 0;
+        for (Apply apply: applyList) {
+            Job job = jobService.getById(apply.getJobId());
+            // 如果职位名条件不为空，筛选职位名，不通过则跳转下一条投递记录
+            if(StrUtil.isNotBlank(job_duty) && !job.getJobDuty().equals(job_duty)) {
+                continue;
+            }
+            if(DateUtil.DateTimeReverse(job.getUpdateDate(),condition)){
+                total += 1;
+            }
+        }
+        return Result.succ(MapUtil.builder().put("applyList",mapList).put("total",total).map());
+    }
+
+    // 查找所有该招聘官名下发布的职位名称
+    @GetMapping("/getJobDuty/{login_id}")
+    public Object getJobDuty(@PathVariable String login_id){
+        try {
+            Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+            List<Job> jobList = jobService.list(new QueryWrapper<Job>().eq("recruiter_id",recruiter.getRecruiterId()));
+            List<String> jobDutyList = new ArrayList<>();
+            for (Job job: jobList) {
+                jobDutyList.add(job.getJobDuty());
+            }
+            return Result.succ(MapUtil.builder().put("conditionJob",jobDutyList).map());
+        } catch (Exception e) {
+            return Result.fail(404,"数据库未查找到相应的职位信息", e.toString());
+        }
+    }
+
 }

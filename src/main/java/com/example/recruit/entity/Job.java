@@ -2,6 +2,7 @@ package com.example.recruit.entity;
 
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -130,5 +131,10 @@ public class Job extends BaseEntity {
      */
     private String jobStatus;
 
+    /**
+     * 招聘官登录ID，用于查表返回招聘官ID和公司ID
+     */
+    @TableField(exist = false)
+    private String loginId;
 
 }

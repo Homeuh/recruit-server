@@ -46,10 +46,14 @@ public class DateUtil {
             return true;
         } else if(condition.equals("今天")) {
             return days == 0;
+        } else if(condition.equals("2天内")) {
+            return days >= 0 && days <= 2;
         } else if(condition.equals("3天内")) {
             return days >= 0 && days <= 3;
         } else if(condition.equals("1周内")) {
             return days >= 0 && days <= 7;
+        } else if(condition.equals("2周内")) {
+            return days >= 0 && days <= 14;
         } else if(condition.equals("1个月内")) {
             return days >= 0 && days <= 31;
         } else if(condition.equals("3个月内")) {

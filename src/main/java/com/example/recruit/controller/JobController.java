@@ -62,11 +62,11 @@ public class JobController extends BaseController {
         return Result.succ(mapList);
     }
 
-    // 职位页无条件分页
+    // 职位页分页：只展示已上线已发布的职位
     @GetMapping("/page")
     public Result page() {
         List<Map> mapList = new ArrayList<>();
-        Page<Job> jobPage = jobService.page(getPage());
+        Page<Job> jobPage = jobService.page(getPage(), new QueryWrapper<Job>().eq("job_status","0"));
         for (Job job : jobPage.getRecords()) {
             Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("recruiter_id", job.getRecruiterId()));
             Company company = companyService.getOne(new QueryWrapper<Company>().eq("company_id", recruiter.getCompanyId()));
@@ -87,7 +87,7 @@ public class JobController extends BaseController {
             map.put("companyBenefit", job.getBenefitTag());
             mapList.add(map);
         }
-        int total = jobService.count();
+        int total = jobService.count(new QueryWrapper<Job>().eq("job_status","0"));
         Map<String, Object> map = new HashMap<>();
         map.put("total",total);
         map.put("jobList", mapList);
@@ -183,6 +183,7 @@ public class JobController extends BaseController {
     public Object countByIndustry(@PathVariable String login_id) {
         List<Map> mapList = new ArrayList<>();
         Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
+        // 保存所有该招聘官下的职位所属行业
         List<Job> jobList = jobService.list(new QueryWrapper<Job>()
                 .eq("recruiter_id",recruiter.getRecruiterId())
                 .groupBy("job_industry"));
@@ -215,6 +216,36 @@ public class JobController extends BaseController {
         }
     }
 
+    //职位编辑：返回编辑页相应信息
+    @GetMapping("/edit/{job_id}")
+    public Object edit(@PathVariable String job_id) {
+        try {
+            Job job = jobService.getById(job_id);
+            Map<String, Object> map = new HashMap<>();
+            map.put("job_id", job.getJobId());
+            map.put("job_duty", job.getJobDuty());
+            map.put("job_industry", job.getJobIndustry());
+            map.put("job_salary", job.getJobSalary());
+            map.put("job_tag", job.getJobTag());
+            map.put("job_year", job.getJobYear());
+            map.put("education", job.getEducation());
+            map.put("recruit_num", job.getRecruitNum());
+            map.put("job_type", job.getJobType());
+            map.put("job_description", job.getJobDescription());
+            map.put("job_requirement", job.getJobRequirement());
+            map.put("job_benefit", job.getJobBenefit());
+            map.put("attached_info", job.getAttachedInfo());
+            map.put("interview_info", job.getInterviewInfo());
+            map.put("office_city", job.getOfficeCity());
+            map.put("office_district", job.getOfficeDistrict());
+            map.put("office_address", job.getOfficeAddress());
+            return Result.succ(MapUtil.builder().put("jobForm",map).map());
+        } catch (Exception e) {
+            return Result.fail("获取职位信息失败");
+        }
+    }
+
+    // 职位删除
     @DeleteMapping("/delete")
     public Object delete(@RequestBody Map<String, Object> map){
         try {
@@ -227,4 +258,23 @@ public class JobController extends BaseController {
             return Result.fail("职位删除失败");
         }
     }
+
+    //职位插入或修改，根据update_date返回最新记录
+    @PostMapping("/saveOrUpdate")
+    public Object saveOrUpdate(@RequestBody Job job) {
+        try {
+            Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",job.getLoginId()));
+            job.setRecruiterId(recruiter.getRecruiterId());
+            job.setCompanyId(recruiter.getCompanyId());
+            jobService.saveOrUpdate(job);
+            Job newJob = jobService.getOne(new QueryWrapper<Job>()
+                    .eq("recruiter_id",job.getRecruiterId())
+                    .orderByDesc("update_date")
+                    .last("limit 1"));
+            return Result.succ(MapUtil.builder().put("job_id",newJob.getJobId()).map());
+        } catch (Exception e) {
+            return Result.succ(400, "职位新增或更新失败",e.toString());
+        }
+    }
+
 }
