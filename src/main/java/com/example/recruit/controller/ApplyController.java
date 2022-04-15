@@ -4,6 +4,7 @@ package com.example.recruit.controller;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.recruit.common.lang.Result;
 import com.example.recruit.entity.*;
@@ -11,6 +12,7 @@ import com.example.recruit.util.DateUtil;
 import org.omg.CORBA.MARSHAL;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -150,28 +152,32 @@ public class ApplyController extends BaseController {
         }
     }
 
-    //分组统计现有工作行业下该招聘官已发布的有收到投递简历的职位数量，如：技术->1，市场->2，销售-><3
+    //分组统计现有工作行业下该招聘官已发布的有收到投递简历的职位数量，如：技术->1，市场->2，销售->3（只筛选投递状态为："1"简历已投递（默认） / "2"简历被查看 / "3"公司感兴趣）
     @GetMapping("/countByIndustry/{login_id}")
     public Object countByIndustry(@PathVariable String login_id) {
         Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
-        List<Apply> applyList = applyService.list(new QueryWrapper<Apply>().eq("recruiter_id",recruiter.getRecruiterId()));
+        List<Apply> applyList = applyService.list(new QueryWrapper<Apply>()
+                .eq("recruiter_id",recruiter.getRecruiterId())
+                .in("apply_status", new String[]{"1", "2", "3"}));
         List<String> jobIds = new ArrayList<>();
         for (Apply apply: applyList) {
             jobIds.add(apply.getJobId());
         }
-        List<Job> jobList = jobService.list(new QueryWrapper<Job>()
-                .in("job_id", jobIds)
-                .groupBy("job_industry"));
 
         List<Map> mapList = new ArrayList<>();
-        for (Job job: jobList) {
-            Map<String, Object> map = new HashMap<>();
-            int count = jobService.count(new QueryWrapper<Job>()
+        if(jobIds.size() != 0) {
+            List<Job> jobList = jobService.list(new QueryWrapper<Job>()
                     .in("job_id", jobIds)
-                    .eq("job_industry",job.getJobIndustry()));
-            map.put("job_industry",job.getJobIndustry());
-            map.put("job_num",count);
-            mapList.add(map);
+                    .groupBy("job_industry"));
+            for (Job job: jobList) {
+                Map<String, Object> map = new HashMap<>();
+                int count = jobService.count(new QueryWrapper<Job>()
+                        .in("job_id", jobIds)
+                        .eq("job_industry",job.getJobIndustry()));
+                map.put("job_industry",job.getJobIndustry());
+                map.put("job_num",count);
+                mapList.add(map);
+            }
         }
         return Result.succ(MapUtil.builder().put("industryList",mapList).map());
     }
@@ -184,48 +190,18 @@ public class ApplyController extends BaseController {
     @GetMapping("/applyManagePage")
     public Object applyManagePage(@RequestParam(name="login_id") String login_id,
                                   @RequestParam(name="job_duty") String job_duty,
+                                  @RequestParam(name="job_industry") String job_industry,
                                   @RequestParam(name="condition") String condition) {
-        List<Map> mapList = new ArrayList<>();
+        /**
+         * 筛选①：职位状态为"1"简历已投递（默认） / "2"简历被查看 / "3"公司感兴趣
+         *    ②：参数条件下
+         *    职位投递总数total，并保存职位ID列表
+         */
         Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
-        Page<Apply> applyPage = applyService.page(getPage(), new QueryWrapper<Apply>()
-                .eq("recruiter_id",recruiter.getRecruiterId())
-                .orderByDesc("update_date"));
-        for (Apply apply : applyPage.getRecords()) {
-            Job job = jobService.getById(apply.getJobId());
-            // 如果职位名条件不为空，筛选职位名，不通过则跳转下一条投递记录
-            if(StrUtil.isNotBlank(job_duty) && !job.getJobDuty().equals(job_duty)) {
-                continue;
-            }
-            if(DateUtil.DateTimeReverse(apply.getUpdateDate(),condition)) {
-                Applicant applicant = applicantService.getById(apply.getApplicantId());
-                Education education = new Education();
-                if(educationService.count(new QueryWrapper<Education>().eq("resume_id",apply.getResumeId())) != 0) {
-                    education = educationService.getOne(new QueryWrapper<Education>()
-                            .eq("resume_id",apply.getResumeId())
-                            .eq("education",applicant.getApplicantEducation())
-                            .last("limit 1"));
-                }
-                Map<String, Object> map = new HashMap<>();
-                map.put("apply_id", apply.getApplyId());
-                map.put("applicant_avatar", applicant.getApplicantAvatar());
-                map.put("applicant_name", applicant.getApplicantName());
-                map.put("applicant_sex", applicant.getApplicantSex());
-                map.put("applicant_age", applicant.getApplicantAge());
-                map.put("working_year", applicant.getWorkingYear());
-                map.put("applicant_education", applicant.getApplicantEducation());
-                map.put("applicant_identity", applicant.getApplicantIdentity());
-                map.put("major", education.getMajor());
-                map.put("school_name", education.getSchoolName());
-                map.put("job_duty", job.getJobDuty());
-                map.put("job_industry", job.getJobIndustry());
-                map.put("create_date", apply.getCreateDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-                mapList.add(map);
-            }
-        }
-
-
+        List<String> jobIds = new ArrayList<>();
         List<Apply> applyList = applyService.list(new QueryWrapper<Apply>()
-                .eq("recruiter_id",recruiter.getRecruiterId()));
+                .eq("recruiter_id",recruiter.getRecruiterId())
+                .in("apply_status", new String[]{"1", "2", "3"}));
         int total = 0;
         for (Apply apply: applyList) {
             Job job = jobService.getById(apply.getJobId());
@@ -233,10 +209,62 @@ public class ApplyController extends BaseController {
             if(StrUtil.isNotBlank(job_duty) && !job.getJobDuty().equals(job_duty)) {
                 continue;
             }
+            // 如果职位行业条件不为空，筛选职位条件，不通过则跳转下一条投递记录
+            if(StrUtil.isNotBlank(job_industry) && !job.getJobIndustry().equals(job_industry)) {
+                continue;
+            }
             if(DateUtil.DateTimeReverse(job.getUpdateDate(),condition)){
                 total += 1;
+                jobIds.add(job.getJobId());
             }
         }
+
+        // 根据职位ID对该招聘官名下职位投递进行分页，并返回前端所需投递相应信息
+        List<Map> mapList = new ArrayList<>();
+        if (jobIds.size() != 0){
+            Page<Apply> applyPage = applyService.page(getPage(), new QueryWrapper<Apply>()
+                    .eq("recruiter_id",recruiter.getRecruiterId())
+                    .in("job_id",jobIds)
+                    .orderByDesc("update_date"));
+            for (Apply apply : applyPage.getRecords()) {
+                Job job = jobService.getById(apply.getJobId());
+                /*// 如果职位名条件不为空，筛选职位名，不通过则跳转下一条投递记录
+                if(StrUtil.isNotBlank(job_duty) && !job.getJobDuty().equals(job_duty)) {
+                    continue;
+                }
+                // 如果职位行业条件不为空，筛选职位条件，不通过则跳转下一条投递记录
+                if(StrUtil.isNotBlank(job_industry) && !job.getJobIndustry().equals(job_industry)) {
+                    continue;
+                }*/
+                if(DateUtil.DateTimeReverse(apply.getUpdateDate(),condition)) {
+                    Applicant applicant = applicantService.getById(apply.getApplicantId());
+                    Education education = new Education();
+                    if(educationService.count(new QueryWrapper<Education>().eq("resume_id",apply.getResumeId())) != 0) {
+                        education = educationService.getOne(new QueryWrapper<Education>()
+                                .eq("resume_id",apply.getResumeId())
+                                .eq("education",applicant.getApplicantEducation())
+                                .last("limit 1"));
+                    }
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("apply_id", apply.getApplyId());
+                    map.put("applicant_id", apply.getApplicantId());
+                    map.put("applicant_avatar", applicant.getApplicantAvatar());
+                    map.put("applicant_name", applicant.getApplicantName());
+                    map.put("applicant_sex", applicant.getApplicantSex());
+                    map.put("applicant_age", applicant.getApplicantAge());
+                    map.put("working_year", applicant.getWorkingYear());
+                    map.put("applicant_education", applicant.getApplicantEducation());
+                    map.put("applicant_identity", applicant.getApplicantIdentity());
+                    map.put("major", education.getMajor());
+                    map.put("school_name", education.getSchoolName());
+                    map.put("job_duty", job.getJobDuty());
+                    map.put("job_industry", job.getJobIndustry());
+                    map.put("create_date", apply.getCreateDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+                    mapList.add(map);
+                }
+            }
+        }
+
         return Result.succ(MapUtil.builder().put("applyList",mapList).put("total",total).map());
     }
 
@@ -246,9 +274,12 @@ public class ApplyController extends BaseController {
         try {
             Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
             List<Job> jobList = jobService.list(new QueryWrapper<Job>().eq("recruiter_id",recruiter.getRecruiterId()));
-            List<String> jobDutyList = new ArrayList<>();
+            List<Map> jobDutyList = new ArrayList<>();
             for (Job job: jobList) {
-                jobDutyList.add(job.getJobDuty());
+                Map<String, Object> map = new HashMap<>();
+                map.put("job_duty",job.getJobDuty());
+                map.put("job_industry",job.getJobIndustry());
+                jobDutyList.add(map);
             }
             return Result.succ(MapUtil.builder().put("conditionJob",jobDutyList).map());
         } catch (Exception e) {
@@ -256,4 +287,20 @@ public class ApplyController extends BaseController {
         }
     }
 
+    // 批量更新投递状态："0"不合适 / "1"简历已投递（默认） / "2"简历被查看 / "3"公司感兴趣 / "4"收到面试邀请 / "5"面试已结束
+    @PostMapping("/updateStatus")
+    public Object updateStatus(@RequestBody Map<String, Object> map) {
+        try {
+//            return Result.succ(MapUtil.builder().put("idArray",map.get("idArray")).put("apply_status",map.get("job_status")).map());
+            for (String apply_id: (List<String>) map.get("idArray")) {
+                applyService.update(new UpdateWrapper<Apply>()
+                        .eq("apply_id", apply_id)
+                        .set("apply_status", map.get("apply_status"))
+                        .set("update_date", LocalDateTime.now()));
+            }
+            return Result.succ("投递状态更新成功");
+        } catch (Exception e) {
+            return Result.fail("投递状态更新失败");
+        }
+    }
 }

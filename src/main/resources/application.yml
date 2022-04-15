@@ -5,7 +5,6 @@ server:
   error:
     include-message: always
     include-exception: true
-
 # DataSource Config
 spring:
   datasource:

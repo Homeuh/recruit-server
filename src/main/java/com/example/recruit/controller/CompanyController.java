@@ -153,6 +153,7 @@ public class CompanyController extends BaseController {
             List<Map<String, Object>> recruit_job = new ArrayList<>();
             for (Job job: jobList) {
                 Map<String, Object> jobMap = new HashMap<>();
+                jobMap.put("job_id",job.getJobId());
                 jobMap.put("job_duty", job.getJobDuty());
                 jobMap.put("job_salary", job.getJobSalary());
                 jobMap.put("office_city", job.getOfficeCity());
@@ -194,7 +195,10 @@ public class CompanyController extends BaseController {
                 jobMap.put("recruiter_duty", recruiter.getRecruiterDuty());
                 filterJob.add(jobMap);
             }
-            return Result.succ(MapUtil.builder().put("filterJob",filterJob).map());
+            int total = jobService.count(new QueryWrapper<Job>()
+                    .eq("company_id",company_id)
+                    .eq("job_status", "0"));
+            return Result.succ(MapUtil.builder().put("filterJob",filterJob).put("total",total).map());
         } catch(Exception e){
             return Result.fail(404,"数据库查找在招职位失败",e.toString());
         }

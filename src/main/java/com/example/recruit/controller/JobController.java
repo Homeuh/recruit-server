@@ -79,6 +79,7 @@ public class JobController extends BaseController {
             map.put("qualification", job.getEducation());
             map.put("interviewer", recruiter.getRecruiterName());
             map.put("interviewerDuty", recruiter.getRecruiterDuty());
+            map.put("company_id", recruiter.getCompanyId());
             map.put("companyName", company.getCompanyName());
             map.put("companyTag", company.getCompanyTag());
             map.put("companySize", company.getCompanySize());
@@ -95,8 +96,8 @@ public class JobController extends BaseController {
     }
 
     // 查找职位详情信息
-    @GetMapping("/info/{job_id}")
-    public Object info(@PathVariable String job_id){
+    @GetMapping("/info")
+    public Object info(@RequestParam(name="job_id") String job_id, @RequestParam(name="isDetail") Boolean isDetail){
         try {
             Job job = jobService.getById(job_id);
             Map<String, Object> jobDataMap = new HashMap<>();
@@ -108,19 +109,22 @@ public class JobController extends BaseController {
             jobDataMap.put("education",job.getEducation());
             jobDataMap.put("job_type",job.getJobType());
             jobDataMap.put("job_tag",job.getJobTag());
-            jobDataMap.put("job_benefit",job.getJobBenefit());
-            jobDataMap.put("job_description",job.getJobDescription());
-            jobDataMap.put("job_requirement",job.getJobRequirement());
-            jobDataMap.put("attached_info",job.getAttachedInfo());
-            jobDataMap.put("interview_info",job.getInterviewInfo());
-            jobDataMap.put("office_address",job.getOfficeAddress());
-            jobDataMap.put("update_date", DateUtil.DateTimeTransform(job.getUpdateDate()));
-            Recruiter recruiter = recruiterService.getById(job.getRecruiterId());
-            jobDataMap.put("recruiter_name",recruiter.getRecruiterName());
-            jobDataMap.put("recruiter_avatar",recruiter.getRecruiterAvatar());
-            jobDataMap.put("recruiter_duty",recruiter.getRecruiterDuty());
+            // 如果是职位详情页请求数据，返回更详细的职位信息
+            if(isDetail) {
+                jobDataMap.put("job_benefit",job.getJobBenefit());
+                jobDataMap.put("job_description",job.getJobDescription());
+                jobDataMap.put("job_requirement",job.getJobRequirement());
+                jobDataMap.put("attached_info",job.getAttachedInfo());
+                jobDataMap.put("interview_info",job.getInterviewInfo());
+                jobDataMap.put("office_address",job.getOfficeAddress());
+                Recruiter recruiter = recruiterService.getById(job.getRecruiterId());
+                jobDataMap.put("update_date", DateUtil.DateTimeTransform(job.getUpdateDate()));
+                jobDataMap.put("recruiter_name",recruiter.getRecruiterName());
+                jobDataMap.put("recruiter_avatar",recruiter.getRecruiterAvatar());
+                jobDataMap.put("recruiter_duty",recruiter.getRecruiterDuty());
+            }
 
-            Company company = companyService.getById(recruiter.getCompanyId());
+            Company company = companyService.getById(job.getCompanyId());
             Map<String, Object> companyMap = new HashMap<>();
             companyMap.put("company_id",company.getCompanyId());
             companyMap.put("company_name", company.getCompanyName());
@@ -143,11 +147,13 @@ public class JobController extends BaseController {
     @GetMapping("/jobManagePage")
     public Object jobManagePage(@RequestParam(name="login_id") String login_id,
                                 @RequestParam(name="job_status") String job_status,
+                                @RequestParam(name="job_industry") String job_industry,
                                 @RequestParam(name="condition") String condition) {
         List<Map> mapList = new ArrayList<>();
         Recruiter recruiter = recruiterService.getOne(new QueryWrapper<Recruiter>().eq("login_id",login_id));
         Page<Job> jobPage = jobService.page(getPage(), new QueryWrapper<Job>()
                 .eq("recruiter_id",recruiter.getRecruiterId())
+                .eq(StrUtil.isNotBlank(job_industry),"job_industry",job_industry)
                 .eq(StrUtil.isNotBlank(job_status),"job_status",job_status)
                 .orderByDesc("update_date"));
         for (Job job : jobPage.getRecords()) {
@@ -168,6 +174,7 @@ public class JobController extends BaseController {
         }
         List<Job> jobList = jobService.list(new QueryWrapper<Job>()
                 .eq("recruiter_id",recruiter.getRecruiterId())
+                .eq(StrUtil.isNotBlank(job_industry),"job_industry",job_industry)
                 .eq(StrUtil.isNotBlank(job_status),"job_status",job_status));
         int total = 0;
         for (Job job: jobList) {
