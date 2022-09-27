@@ -10,7 +10,7 @@ public class UploadUtil {
 
     //定义一个上传文件的路径：本地路径->桌面recruit-image/avatar 文件夹
 //    private static final String BASE_PATH = "G:\\recruit\\src\\image\\avatar";
-    private static final String BASE_PATH = "F:\\recruit\\recruit\\src\\image\\";
+    private static final String BASE_PATH = "G:\\recruit\\src\\image\\";
     //定义文件服务器的访问地址
 //    private static  final String SERVER_PATH="http://localhost:8080/upload/";
     public static String upload(MultipartFile file, String secondPath){

@@ -43,11 +43,13 @@ public class ApplyController extends BaseController {
                 Job job = jobService.getById(apply.getJobId());
                 Company company = companyService.getById(apply.getCompanyId());
                 Map<String, Object> map = new HashMap<>();
+                map.put("job_id", job.getJobId());
                 map.put("job_duty", job.getJobDuty());
                 map.put("job_salary", job.getJobSalary());
                 map.put("office_city", job.getOfficeCity());
                 map.put("job_year", job.getJobYear());
                 map.put("education", job.getEducation());
+                map.put("company_id",company.getCompanyId());
                 map.put("company_logo", company.getCompanyLogo());
                 map.put("company_name", company.getCompanyName());
                 map.put("company_tag", company.getCompanyTag());
